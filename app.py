@@ -9,41 +9,42 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, matthews_corrcoef, roc_auc_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, matthews_corrcoef, roc_auc_score, classification_report
 
-st.set_page_config(page_title="ML Model Evaluator", layout="wide")
+st.set_page_config(page_title="ML Evaluator", layout="wide")
+st.title("ML Assignment 2: Classification Models")
 
-st.title("📊 ML Assignment 2: Classification Model Comparison")
-st.markdown("This app trains 6 models on an uploaded dataset and compares their performance.")
-
-# 1. Sidebar - File Upload
-st.sidebar.header("1. Upload Data")
-uploaded_file = st.sidebar.file_saver = st.sidebar.file_uploader("Upload your input CSV file", type=["csv"])
+# 1. Sidebar Upload [Requirement 4a]
+uploaded_file = st.sidebar.file_uploader("Upload your input CSV file", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.write("### Dataset Preview", df.head())
     
-    # Simple Preprocessing (Logic from our Lab)
-    target_col = st.selectbox("Select Target Column", df.columns, index=len(df.columns)-1)
+    # Preprocessing
+    target_col = st.selectbox("Select Target Column (Select 'y')", df.columns, index=len(df.columns)-1)
     
-    if st.button("Train Models"):
+    # 2. Model Selection Dropdown [Requirement 4b]
+    selected_model_name = st.selectbox("Select Model for Detailed Report", 
+                                      ["Logistic Regression", "Decision Tree", "KNN", "Naive Bayes", "Random Forest", "XGBoost"])
+
+    if st.button("Run Evaluation"):
         X = df.drop(target_col, axis=1)
         y = df[target_col]
         
-        # Basic Encoding for Categorical
+        # Encoding and Scaling
         le = LabelEncoder()
         for col in X.select_dtypes(include=['object']).columns:
             X[col] = le.fit_transform(X[col])
-        
-        # Split and Scale
+        if y.dtype == 'object': y = le.fit_transform(y)
+            
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
         X_test = scaler.transform(X_test)
         
-        # Models Dictionary
-        models = {
+        # Define Model Object
+        models_dict = {
             "Logistic Regression": LogisticRegression(),
             "Decision Tree": DecisionTreeClassifier(),
             "KNN": KNeighborsClassifier(),
@@ -52,29 +53,22 @@ if uploaded_file is not None:
             "XGBoost": XGBClassifier()
         }
         
-        results = []
+        # Train and Show Specific Results
+        model = models_dict[selected_model_name]
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
         
-        with st.spinner('Training 6 models...'):
-            for name, model in models.items():
-                model.fit(X_train, y_train)
-                y_pred = model.predict(X_test)
-                
-                # Metrics
-                acc = accuracy_score(y_test, y_pred)
-                prec = precision_score(y_test, y_pred, average='weighted')
-                rec = recall_score(y_test, y_pred, average='weighted')
-                f1 = f1_score(y_test, y_pred, average='weighted')
-                mcc = matthews_corrcoef(y_test, y_pred)
-                
-                results.append([name, acc, prec, rec, f1, mcc])
+        # 3. Display Metrics [Requirement 4c]
+        st.write(f"### Results for {selected_model_name}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Accuracy", f"{accuracy_score(y_test, y_pred):.4f}")
+        col2.metric("F1 Score", f"{f1_score(y_test, y_pred, average='weighted'):.4f}")
+        col3.metric("MCC", f"{matthews_corrcoef(y_test, y_pred):.4f}")
+        col4.metric("Recall", f"{recall_score(y_test, y_pred, average='weighted'):.4f}")
         
-        # Display Results
-        res_df = pd.DataFrame(results, columns=['Model', 'Accuracy', 'Precision', 'Recall', 'F1', 'MCC'])
-        st.write("### Model Comparison Results")
-        st.dataframe(res_df.style.highlight_max(axis=0))
-        
-        # Mandatory UI Element: Bar Chart of Accuracy
-        st.write("### Accuracy Comparison Chart")
-        st.bar_chart(res_df.set_index('Model')['Accuracy'])
+        # 4. Classification Report [Requirement 4d]
+        st.write("### Classification Report")
+        st.text(classification_report(y_test, y_pred))
+
 else:
-    st.info("Awaiting CSV file upload. Please upload a dataset to begin.")
+    st.info("Please upload the banking.csv file to begin.")
