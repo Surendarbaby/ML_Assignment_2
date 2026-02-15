@@ -1,4 +1,3 @@
-%%writefile app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -54,6 +53,7 @@ if uploaded_file is not None:
         for name, m in models_dict.items():
             m.fit(X_train, y_train)
             pred = m.predict(X_test)
+            # AUC requires probabilities
             prob = m.predict_proba(X_test)[:, 1] if hasattr(m, "predict_proba") else pred
             
             all_results.append({
@@ -67,11 +67,14 @@ if uploaded_file is not None:
             })
         
         res_df = pd.DataFrame(all_results)
-        st.dataframe(res_df.style.format(precision=4)) # Displays all 6 metrics
+        st.dataframe(res_df.style.format(precision=4)) 
 
         # --- INDIVIDUAL REPORT [Requirement 4d] ---
         st.write(f"### 3. Detailed Report: {selected_model_name}")
-        st.text(classification_report(y_test, models_dict[selected_model_name].predict(X_test)))
+        # Re-fit the specific selected model to show its report
+        specific_model = models_dict[selected_model_name]
+        specific_model.fit(X_train, y_train)
+        st.text(classification_report(y_test, specific_model.predict(X_test)))
 
         st.write("### 4. Accuracy Comparison Chart")
         st.bar_chart(res_df.set_index('Model')['Accuracy'])
